@@ -1,0 +1,356 @@
+import copy
+import math
+
+
+def are_constrained(variable: str, var: str, tiles: list, domains: dict) -> int:
+    cols = len(tiles[0])
+
+    position1: int = int(variable[0:-1])
+    direction1: str = variable[-1]
+    x1 = get_x(position1, cols)
+    y1 = get_y(position1, cols)
+    len1 = len(domains[variable][0])
+
+    position2: int = int(var[0:-1])
+    direction2: str = var[-1]
+    x2 = get_x(position2, cols)
+    y2 = get_y(position2, cols)
+    if not domains[var]:
+        return -1
+    len2 = len(domains[var][0])
+
+    if direction1 == direction2:
+        return -1
+
+    if direction1 == "h":
+        for i in range(len1):
+            field1 = x1 * cols + y1 + i
+            for j in range(len2):
+                field2 = (x2 + j) * cols + y2
+                if field1 == field2:
+                    return field2
+    elif direction1 == "v":
+        for i in range(len1):
+            field1 = (x1 + i) * cols + y1
+            for j in range(len2):
+                field2 = x2 * cols + y2 + j
+                if field1 == field2:
+                    return field2
+
+    return -1
+
+
+def is_consistent_assignment(variable: str, value: str, tiles: list) -> bool:
+    position: int = int(variable[0:-1])
+    direction: str = variable[-1]
+    cols = len(tiles[0])
+    x = get_x(position, cols)
+    y = get_y(position, cols)
+
+    if direction == "h":
+        for i in range(len(value)):
+            if tiles[x][y + i] != value[i] and tiles[x][y + i] != 0:
+                return False
+    elif direction == "v":
+        for i in range(len(value)):
+            if tiles[x + i][y] != value[i] and tiles[x + i][y] != 0:
+                return False
+    else:
+        return False
+
+    return True
+
+
+def create_domains(variables: dict, words: list):
+    domains = {}
+    for variable in variables:
+        lenght: int = variables.get(variable)
+        for word in words:
+            if len(word) == lenght:
+                # insert into domains
+                if variable not in domains:
+                    domains[variable] = [word]
+                else:
+                    domains[variable].append(word)
+
+    return domains
+
+
+def get_x(position: int, cols: int):
+    return math.floor(position / cols)
+
+
+def get_y(position: int, cols: int):
+    return position % cols
+
+
+class Algorithm:
+    def get_algorithm_steps(self, tiles, variables, words):
+        pass
+
+
+class ExampleAlgorithm(Algorithm):
+
+    def get_algorithm_steps(self, tiles, variables: dict, words):
+        moves_list = [['0h', 0], ['0v', 2], ['1v', 1], ['2h', 1], ['4h', None],
+                      ['2h', None], ['1v', None], ['0v', 3], ['1v', 1], ['2h', 1],
+                      ['4h', 4], ['5v', 5]]
+        domains = {var: [word for word in words] for var in variables}
+        solution = []
+        for move in moves_list:
+            solution.append([move[0], move[1], domains])
+        return solution
+
+
+class Backtracking(Algorithm):
+
+    def __init__(self) -> None:
+        self.domains = {}
+        super().__init__()
+
+    def bactrack_search(self, variables: list, domains: dict, solution: list, lvl: int, tiles: list, words: list) \
+            -> bool:
+        if lvl == len(variables):
+            return True
+
+        variable = variables[lvl]
+        for value in domains[variable]:
+            step = []
+            if is_consistent_assignment(variable, value, tiles):
+                # tiles update for current recursive level
+                new_tiles = copy.deepcopy(tiles)
+                position: int = int(variable[0:-1])
+                direction: str = variable[-1]
+                cols = len(tiles[0])
+                x = get_x(position, cols)
+                y = get_y(position, cols)
+                if direction == "h":
+                    for i in range(len(value)):
+                        new_tiles[x][y + i] = value[i]
+                elif direction == "v":
+                    for i in range(len(value)):
+                        new_tiles[x + i][y] = value[i]
+                # domain update for current recursive level
+                new_dom = copy.deepcopy(domains)
+                new_dom[variable] = [value]
+                # appending iteration to the solution process
+                step.append(variable)
+                step.append(words.index(value))
+                step.append(self.domains)
+                solution.append(step)
+                step = []
+                if self.bactrack_search(variables, new_dom, solution, lvl + 1, new_tiles, words):
+                    return True
+
+                step.append(variable)
+                step.append(None)
+                step.append(self.domains)
+                solution.append(step)
+        return False
+
+    def get_algorithm_steps(self, tiles: list, variables: dict, words: list):
+        solution = []
+        self.domains = {var: [word for word in words] for var in variables}
+        domains = create_domains(variables, words)
+        variables_list: list = list(variables.keys())
+        # variables_list.sort()
+        self.bactrack_search(variables_list, domains, solution, 0, tiles, words)
+        return solution
+
+
+class ForwardChecking(Algorithm):
+
+    def __init__(self) -> None:
+        self.domains: dict = {}
+        super().__init__()
+
+    @staticmethod
+    def update_domain(var_domain: list, var: str, variable: str, value: str, tiles: list, position: int) -> bool:
+        cols = len(tiles[0])
+        # intersection place
+        x1 = get_x(position, cols)
+        y1 = get_y(position, cols)
+        # first word position
+        position2: int = int(variable[0:-1])
+        x2 = get_x(position2, cols)
+        y2 = get_y(position2, cols)
+        # letter of first word
+        letter = value[int(abs(x1 - x2 + y1 - y2))]
+        # second word position
+        position3: int = int(var[0:-1])
+        x3 = get_x(position3, cols)
+        y3 = get_y(position3, cols)
+        words = copy.deepcopy(var_domain)
+        edited = False
+        for word in words:
+            if word[int(abs(x1 - x3 + y1 - y3))] != letter:
+                var_domain.remove(word)
+                edited = True
+        return edited
+
+    def bactrack_search(self, variables: list, domains: dict, solution: list, lvl: int, tiles: list, words: list) \
+            -> bool:
+        if lvl == len(variables):
+            return True
+
+        variable = variables[lvl]
+        for value in domains[variable]:
+            if is_consistent_assignment(variable, value, tiles):
+                # tiles update for current recursive level
+                new_tiles = copy.deepcopy(tiles)
+                position: int = int(variable[0:-1])
+                direction: str = variable[-1]
+                cols = len(tiles[0])
+                x = get_x(position, cols)
+                y = get_y(position, cols)
+                if direction == "h":
+                    for i in range(len(value)):
+                        new_tiles[x][y + i] = value[i]
+                elif direction == "v":
+                    for i in range(len(value)):
+                        new_tiles[x + i][y] = value[i]
+                # domain update for current recursive level
+                new_dom = copy.deepcopy(domains)
+                new_dom[variable] = [value]
+                # appending iteration to the solution process
+                solution.append([variable, words.index(value), self.domains])
+
+                # Forward Checking optimization
+                for var in variables:
+                    if var != variable:
+                        x: int = are_constrained(variable, var, tiles, new_dom)
+                        if x != -1:
+                            ForwardChecking.update_domain(new_dom[var], var, variable, value, new_tiles, x)
+
+                if self.bactrack_search(variables, new_dom, solution, lvl + 1, new_tiles, words):
+                    return True
+
+                solution.append([variable, None, self.domains])
+
+        return False
+
+    def get_algorithm_steps(self, tiles: list, variables: dict, words: list):
+        solution = []
+        self.domains = {var: [word for word in words] for var in variables}
+        domains = create_domains(variables, words)
+        variables_list: list = list(variables.keys())
+        # variables_list.sort()
+        self.bactrack_search(variables_list, domains, solution, 0, tiles, words)
+        return solution
+
+
+class ArcConsistency(Algorithm):
+
+    def __init__(self) -> None:
+        self.domains = {}
+        super().__init__()
+
+    @staticmethod
+    def satisfies_constraint(val_x: str, val_y: str, x: str, y: str, tiles: list):
+        cols = len(tiles[0])
+
+        position_x: int = int(x[0:-1])
+        direction_x: str = x[-1]
+        x1 = get_x(position_x, cols)
+        y1 = get_y(position_x, cols)
+        len_x = len(val_x)
+
+        position_y: int = int(y[0:-1])
+        direction_y: str = y[-1]
+        x2 = get_x(position_y, cols)
+        y2 = get_y(position_y, cols)
+        len_y = len(val_y)
+
+        if direction_x == direction_y:
+            return False
+
+        if direction_x == "h":
+            for i in range(len_x):
+                field1 = x1 * cols + y1 + i
+                for j in range(len_y):
+                    field2 = (x2 + j) * cols + y2
+                    if field1 == field2:
+                        if val_x[i] == val_y[j]:
+                            return True
+                        else:
+                            return False
+        elif direction_x == "v":
+            for i in range(len_x):
+                field1 = (x1 + i) * cols + y1
+                for j in range(len_y):
+                    field2 = x2 * cols + y2 + j
+                    if field1 == field2:
+                        if val_x[i] == val_y[j]:
+                            return True
+                        else:
+                            return False
+
+        return False
+
+    @staticmethod
+    def arc_consistency(variables, domains, tiles):
+        arc_list = []  # get_all_arcs(variables, domains, tiles)
+        while arc_list:
+            x, y = arc_list.pop(0)
+            x_vals_to_del = []
+            for val_x in domains[x]:
+                y_no_val = True
+                for val_y in domains[y]:
+                    if ArcConsistency.satisfies_constraint(val_x, val_y, x, y, tiles):
+                        y_no_val = False
+                        break
+                if y_no_val:
+                    x_vals_to_del.append(val_x)
+            if x_vals_to_del:
+                domains[x] = [v for v in domains[x] if v not in x_vals_to_del]
+                if not domains[x]:
+                    return False
+                for v in variables:
+                    if v != x and are_constrained(v, x, tiles, domains) != -1:
+                        arc_list.append((v, x))
+        return True
+
+    def bactrack_search(self, variables: list, domains: dict, solution: list, lvl: int, tiles: list, words: list) \
+            -> bool:
+        if lvl == len(variables):
+            return True
+
+        variable = variables[lvl]
+        for value in domains[variable]:
+            if is_consistent_assignment(variable, value, tiles):
+                # tiles update for current recursive level
+                new_tiles = copy.deepcopy(tiles)
+                position: int = int(variable[0:-1])
+                direction: str = variable[-1]
+                cols = len(tiles[0])
+                x = get_x(position, cols)
+                y = get_y(position, cols)
+                if direction == "h":
+                    for i in range(len(value)):
+                        new_tiles[x][y + i] = value[i]
+                elif direction == "v":
+                    for i in range(len(value)):
+                        new_tiles[x + i][y] = value[i]
+                # domain update for current recursive level
+                new_dom = copy.deepcopy(domains)
+                new_dom[variable] = [value]
+                # appending iteration to the solution process
+                solution.append([variable, words.index(value), self.domains])
+
+                if not ArcConsistency.arc_consistency(variables, new_dom, new_tiles):
+                    solution.append([variable, None, self.domains])
+                    continue
+
+                if self.bactrack_search(variables, new_dom, solution, lvl + 1, new_tiles, words):
+                    return True
+                solution.append([variable, None, self.domains])
+        return False
+
+    def get_algorithm_steps(self, tiles: list, variables: dict, words: list):
+        solution = []
+        self.domains = {var: [word for word in words] for var in variables}
+        domains = create_domains(variables, words)
+        variables_list: list = list(variables.keys())
+        # variables_list.sort()
+        self.bactrack_search(variables_list, domains, solution, 0, tiles, words)
+        return solution
